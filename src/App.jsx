@@ -21,8 +21,6 @@ function createPost({topic,point,audience,tone,framework}){
 }
 
 async function generatePostWithGemini({ apiKey, topic, point, tone, framework }){
- const model = "gemini-1.5-flash";
- const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
  const prompt = `You are an expert LinkedIn content writer. Write a highly engaging, professional, and scannable LinkedIn post.
 Topic: ${topic}
 Key Point/Experience: ${point}
@@ -37,23 +35,38 @@ Guidelines:
 5. Add exactly 3 relevant hashtags.
 6. Write ONLY the post content itself. Do not include titles, notes, markdown styling like "**bold**" or "\`code\`", or explanations.`;
 
- const response = await fetch(url, {
-  method: "POST",
-  headers: { "Content-Type": "application/json" },
-  body: JSON.stringify({
-   contents: [{ parts: [{ text: prompt }] }],
-   generationConfig: {
-    temperature: 0.75,
-    maxOutputTokens: 1000
+ const endpoints = [
+  `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+  `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`,
+  `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+  `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${apiKey}`
+ ];
+
+ let lastError = null;
+ for (const url of endpoints) {
+  try {
+   const response = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+     contents: [{ parts: [{ text: prompt }] }],
+     generationConfig: {
+      temperature: 0.75,
+      maxOutputTokens: 1000
+     }
+    })
+   });
+   if (response.ok) {
+    const data = await response.json();
+    return data.candidates[0].content.parts[0].text;
    }
-  })
- });
- if (!response.ok) {
-  const err = await response.json();
-  throw new Error(err.error?.message || "Gemini API request failed.");
+   const err = await response.json();
+   lastError = new Error(err.error?.message || `Gemini API returned ${response.status}`);
+  } catch (e) {
+   lastError = e;
+  }
  }
- const data = await response.json();
- return data.candidates[0].content.parts[0].text;
+ throw lastError || new Error("Failed to generate content with Gemini API.");
 }
 
 function App(){

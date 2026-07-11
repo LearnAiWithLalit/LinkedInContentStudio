@@ -2,8 +2,6 @@ import { useState } from 'react'
 import { AlertCircle, BookOpen, Download, FileSpreadsheet, Loader2, Play, Sparkles } from 'lucide-react'
 
 async function generateBulkPost({ apiKey, topic }){
- const model = "gemini-1.5-flash";
- const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
  const prompt = `You are an expert LinkedIn content writer. Write a highly engaging, professional, and scannable LinkedIn post about the topic: "${topic}".
   
 Also, design a highly specific, editorial text-to-image prompt to create a background illustration for this post.
@@ -27,26 +25,41 @@ Format your output EXACTLY as follows:
 ===PROMPT===
 [Your 1-sentence image prompt here]`;
 
- const response = await fetch(url, {
-  method: "POST",
-  headers: { "Content-Type": "application/json" },
-  body: JSON.stringify({
-   contents: [{ parts: [{ text: prompt }] }],
-   generationConfig: { temperature: 0.75, maxOutputTokens: 1000 }
-  })
- });
- if (!response.ok) {
-  const err = await response.json();
-  throw new Error(err.error?.message || "Gemini API request failed.");
+ const endpoints = [
+  `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+  `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`,
+  `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+  `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${apiKey}`
+ ];
+
+ let lastError = null;
+ for (const url of endpoints) {
+  try {
+   const response = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+     contents: [{ parts: [{ text: prompt }] }],
+     generationConfig: { temperature: 0.75, maxOutputTokens: 1000 }
+    })
+   });
+   if (response.ok) {
+    const data = await response.json();
+    const text = data.candidates[0].content.parts[0].text;
+    
+    const parts = text.split('===PROMPT===');
+    const postContent = parts[0].replace('===POST===', '').trim();
+    const imgPrompt = parts[1] ? parts[1].trim() : `Editorial digital technology illustration, dark background, topic of ${topic}`;
+    
+    return { postContent, imgPrompt };
+   }
+   const err = await response.json();
+   lastError = new Error(err.error?.message || `Gemini API returned ${response.status}`);
+  } catch (e) {
+   lastError = e;
+  }
  }
- const data = await response.json();
- const text = data.candidates[0].content.parts[0].text;
- 
- const parts = text.split('===PROMPT===');
- const postContent = parts[0].replace('===POST===', '').trim();
- const imgPrompt = parts[1] ? parts[1].trim() : `Editorial digital technology illustration, dark background, topic of ${topic}`;
- 
- return { postContent, imgPrompt };
+ throw lastError || new Error("Failed to generate content with Gemini API.");
 }
 
 const sampleTopics = [
