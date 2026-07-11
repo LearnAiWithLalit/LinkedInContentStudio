@@ -21,19 +21,21 @@ function createPost({topic,point,audience,tone,framework}){
 }
 
 async function generatePostWithGemini({ apiKey, topic, point, tone, framework }){
- const prompt = `You are an expert LinkedIn content writer. Write a highly engaging, professional, and scannable LinkedIn post.
-Topic: ${topic}
-Key Point/Experience: ${point || "Generate a highly relevant, insightful, and practical key point or experience automatically based on the topic."}
-Tone: ${tone}
-Framework Structure: ${framework} (e.g. hook, list, key takeaway)
+ const prompt = `You are a master of writing viral, high-value LinkedIn content for tech audiences. Write a compelling, scannable post.
 
-Guidelines:
-1. Start with a scroll-stopping, bold hook line.
-2. Keep paragraphs short and space them out. Use single sentences for key emphasis.
-3. Use bullet points or step-by-step numbers with emojis.
-4. Conclude with a strong takeaway and a conversation-starting question.
-5. Add exactly 3 relevant hashtags.
-6. Write ONLY the post content itself. Do not include titles, notes, markdown styling like "**bold**" or "\`code\`", or explanations.`;
+Core Input Parameters:
+- Primary Topic: "${topic}"
+- Personal Experience / Core Message: "${point || "Auto-generate a highly relevant, step-by-step, actionable personal schedule or practical lesson based on the topic."}"
+- Desired Tone: "${tone}"
+- Content Framework: "${framework.toUpperCase()}" (Structure your post strictly according to this framework: Hook -> High-value actionable details/steps -> Key takeaway -> Interactive ending question)
+
+Writing Instructions:
+1. Hook: Start with a powerful 1-2 sentence hook. Make it punchy, contrarian, or highly relatable to the target audience.
+2. Body Structure: Space out paragraphs. Keep sentences short. Use bullet points, emojis, or a step-by-step numbered breakdown to make it highly scannable and easy to read.
+3. Actionable Depth: Provide concrete, specific details (e.g., if the topic is a schedule, list actual times, durations, or exact steps). Do not be generic.
+4. Call to Action: Conclude with a single-sentence key takeaway and a high-engagement question.
+5. Hashtags: End with exactly 3 relevant hashtags.
+6. Formatting: Return ONLY the raw post content. Do not include markdown bold "**text**" or header sizes like "###", code blocks, metadata, titles, or notes.`;
 
  const endpoints = [
   `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${apiKey}`,
@@ -133,7 +135,7 @@ async function publishToLinkedIn({ token, authorUrn, text }) {
 }
 
 function App(){
- const [tab,setTab]=useState('compose'); const [framework,setFramework]=useState('insight'); const [topic,setTopic]=useState('How machines learn'); const [point,setPoint]=useState('Good learning connects concepts instead of presenting isolated definitions.'); const [audience,setAudience]=useState(audiences[0]); const [tone,setTone]=useState(tones[0]); const [post,setPost]=useState(''); const [saved,setSaved]=useState(()=>JSON.parse(localStorage.getItem('signal-drafts')||'[]')); const [copied,setCopied]=useState(false)
+ const [tab,setTab]=useState('compose'); const [framework,setFramework]=useState('insight'); const [topic,setTopic]=useState('How machines learn'); const [point,setPoint]=useState(''); const [audience,setAudience]=useState(audiences[0]); const [tone,setTone]=useState(tones[0]); const [post,setPost]=useState(''); const [saved,setSaved]=useState(()=>JSON.parse(localStorage.getItem('signal-drafts')||'[]')); const [copied,setCopied]=useState(false)
  const [geminiKey,setGeminiKey]=useState(()=>localStorage.getItem('gemini-api-key')||''); const [loading,setLoading]=useState(false); const [status,setStatus]=useState('');
  const [showCopyGuide,setShowCopyGuide]=useState(false);
  const [liToken, setLiToken] = useState(() => localStorage.getItem('li-token') || '');
