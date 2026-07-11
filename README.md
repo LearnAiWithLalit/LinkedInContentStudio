@@ -12,7 +12,7 @@ A privacy-first, human-in-the-loop workspace for planning and writing thoughtful
 - Includes a lightweight content calendar
 - Opens LinkedIn for final manual review and publishing
 - Creates animated 4:5 visuals and exports GIFs entirely in the browser
-- Supports an optional user-provided OpenRouter key for free image models
+- Supports an optional user-provided NVIDIA Developer API key for catalog image models
 
 It does **not** automate LinkedIn, scrape profiles, store credentials, or create inauthentic engagement.
 
@@ -27,4 +27,4 @@ npm run dev
 
 Drafts use browser `localStorage`. No account, backend, token, or LinkedIn credential is required.
 
-OpenRouter keys are optional and kept only in the current tab's memory. The project does not provide a shared key or automatically fall back to paid models.
+NVIDIA keys are optional and kept only in the current tab's memory. The project does not provide or store a shared key. Local animated GIF creation never requires NVIDIA or another external service.
