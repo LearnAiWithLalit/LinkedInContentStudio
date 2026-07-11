@@ -13,11 +13,11 @@ const tones=['Clear & educational','Personal & reflective','Bold & contrarian','
 const audiences=['AI beginners','Tech professionals','Product & project leaders','Creators & learners']
 
 function createPost({topic,point,audience,tone,framework}){
- const t=topic.trim()||'building useful AI products'; const p=point.trim()||'The tool matters less than the system around it.'
- if(framework==='myth') return `The biggest misconception about ${t}?\n\nThat success comes from adding more tools.\n\nIt sounds reasonable. But it usually creates three problems:\n\n→ More handoffs nobody owns\n→ More output nobody verifies\n→ More complexity before value\n\nA better question is not “Which tool should we add?”\n\nAsk:\n• What problem are we solving?\n• What evidence would prove it works?\n• Where must a human stay responsible?\n\n${p}\n\nWhat misconception do you keep seeing in your work?\n\n#ArtificialIntelligence #Learning #FutureOfWork`
- if(framework==='build') return `I built a small project around ${t}.\n\nNot because the world needed another demo.\n\nI wanted to understand what happens between an idea and a working system.\n\nWhat I changed along the way:\n\n01 — Started with the user’s question\n02 — Removed features that looked good but taught nothing\n03 — Made the difficult concepts visual\n04 — Tested every flow as a first-time visitor\n\nThe biggest lesson?\n\n${p}\n\nBuilding in public turns vague knowledge into visible proof of work.\n\nWhat are you learning by building right now?\n\n#BuildInPublic #AI #WebDevelopment #Learning`
- if(framework==='list') return `${t} is easier to understand when you stop treating it as one big topic.\n\nUse this simple learning sequence:\n\n1. Understand the problem\n2. Learn the smallest useful concept\n3. See one visual example\n4. Practice with a real scenario\n5. Explain it without jargon\n\nBefore moving forward, check:\n\n✓ Can I explain why it matters?\n✓ Can I name one limitation?\n✓ Can I apply it to my work?\n\n${p}\n\nSave this for your next learning session. What would you add?\n\n#Learning #ArtificialIntelligence #CareerGrowth`
- return `${t} just became more important—and more misunderstood.\n\nThe people who benefit most will not be those who memorize the most terminology.\n\nThey will understand how the pieces connect.\n\nHere is the simple map:\n\n→ The goal defines what “good” means\n→ Data provides examples\n→ A model learns a pattern\n→ Evaluation reveals where it fails\n→ Human judgement decides whether it is useful\n\n${p}\n\nThe takeaway:\n\nDon’t learn isolated tools. Learn the decisions that connect them.\n\nWhich part deserves a deeper breakdown next?\n\n#AI #MachineLearning #Technology #ContinuousLearning`
+ const t=topic.trim()||'building useful software systems'; const p=point.trim()||'The tool matters less than the system around it.'
+ if(framework==='myth') return `The biggest misconception about ${t}?\n\nThat success comes from adding more tools or complexity.\n\nIt sounds reasonable. But it usually creates three problems:\n\n→ More handoffs nobody owns\n→ More output nobody verifies\n→ More complexity before value\n\nA better question is not “Which tool should we add?”\n\nAsk:\n• What core problem are we solving?\n• What evidence would prove it works?\n• Where is the simplest path to value?\n\n${p}\n\nWhat misconception do you keep seeing in your work?\n\n#Technology #SoftwareEngineering #Productivity`
+ if(framework==='build') return `I built a small project around ${t}.\n\nNot because the world needed another demo.\n\nI wanted to understand what happens between an idea and a working system.\n\nWhat I changed along the way:\n\n01 — Started with the user’s core question\n02 — Removed features that looked good but taught nothing\n03 — Made the difficult concepts visual\n04 — Tested every flow as a first-time visitor\n\nThe biggest lesson?\n\n${p}\n\nBuilding in public turns vague knowledge into visible proof of work.\n\nWhat are you learning by building right now?\n\n#BuildInPublic #SoftwareEngineering #WebDevelopment #Programming`
+ if(framework==='list') return `${t} is easier to understand when you stop treating it as one big topic.\n\nUse this simple learning sequence:\n\n1. Understand the problem\n2. Learn the smallest useful concept\n3. See one practical example\n4. Practice with a real scenario\n5. Explain it without jargon\n\nBefore moving forward, check:\n\n✓ Can I explain why it matters?\n✓ Can I name one limitation?\n✓ Can I apply it to my work?\n\n${p}\n\nSave this for your next learning session. What would you add?\n\n#Learning #TechSkills #CareerGrowth`
+ return `${t} just became more important—and more misunderstood.\n\nThe people who benefit most will not be those who memorize the most terminology.\n\nThey will understand how the pieces connect.\n\nHere is the simple map:\n\n→ First principles define the foundation\n→ Actionable experience builds proof\n→ Systems handle the execution\n→ Iteration reveals where it breaks\n→ Consistency decides whether it succeeds\n\n${p}\n\nThe takeaway:\n\nDon’t focus on isolated elements. Build the system that connects them.\n\nWhich part of this matches your experience?\n\n#Technology #Systems #SoftwareEngineering`
 }
 
 async function generatePostWithGemini({ apiKey, topic, point, tone, framework }){
@@ -197,11 +197,13 @@ function App(){
     const val=await generatePostWithGemini({apiKey:geminiKey,topic,point,tone,framework});
     setPost(val); setStatus('');
    }catch(e){
-    setStatus(e.message);
+    setStatus(`⚠️ AI Error: ${e.message}. Used fallback template.`);
+    setPost(createPost({topic,point,audience,tone,framework}));
    }finally{
     setLoading(false);
    }
   }else{
+   setStatus('ℹ️ Offline mode: Using pre-structured template. Paste a Gemini API Key to write customized AI drafts!');
    setPost(createPost({topic,point,audience,tone,framework}))
   }
  }
