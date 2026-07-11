@@ -69,14 +69,116 @@ Guidelines:
  throw lastError || new Error("Failed to generate content with Gemini API.");
 }
 
+async function fetchLinkedInProfile(token) {
+ try {
+  const url = `https://corsproxy.io/?url=${encodeURIComponent('https://api.linkedin.com/v2/userinfo')}`;
+  const res = await fetch(url, {
+   headers: { 'Authorization': `Bearer ${token}` }
+  });
+  if (res.ok) {
+   const data = await res.json();
+   return {
+    name: data.name || `${data.given_name} ${data.family_name}`,
+    urn: `urn:li:person:${data.sub}`
+   };
+  }
+ } catch (e) {
+  console.error("userinfo failed, trying /me", e);
+ }
+
+ const urlMe = `https://corsproxy.io/?url=${encodeURIComponent('https://api.linkedin.com/v2/me')}`;
+ const resMe = await fetch(urlMe, {
+  headers: { 'Authorization': `Bearer ${token}` }
+ });
+ if (!resMe.ok) {
+  throw new Error("Invalid LinkedIn Access Token.");
+ }
+ const dataMe = await resMe.json();
+ const name = `${dataMe.localizedFirstName} ${dataMe.localizedLastName}`;
+ return {
+  name,
+  urn: `urn:li:person:${dataMe.id}`
+ };
+}
+
+async function publishToLinkedIn({ token, authorUrn, text }) {
+ const url = `https://corsproxy.io/?url=${encodeURIComponent('https://api.linkedin.com/rest/posts')}`;
+ const response = await fetch(url, {
+  method: 'POST',
+  headers: {
+   'Authorization': `Bearer ${token}`,
+   'Content-Type': 'application/json',
+   'LinkedIn-Version': '202401',
+   'X-Restli-Protocol-Version': '2.0.0'
+  },
+  body: JSON.stringify({
+   author: authorUrn,
+   commentary: text,
+   visibility: 'PUBLIC',
+   distribution: {
+    feedDistribution: 'MAIN_FEED',
+    targetEntities: [],
+    thirdPartyDistributionChannels: []
+   },
+   lifecycleState: 'PUBLISHED'
+  })
+ });
+ if (!response.ok) {
+  const err = await response.json();
+  throw new Error(err.message || "Failed to publish post to LinkedIn.");
+ }
+ return true;
+}
+
 function App(){
  const [tab,setTab]=useState('compose'); const [framework,setFramework]=useState('insight'); const [topic,setTopic]=useState('How machines learn'); const [point,setPoint]=useState('Good learning connects concepts instead of presenting isolated definitions.'); const [audience,setAudience]=useState(audiences[0]); const [tone,setTone]=useState(tones[0]); const [post,setPost]=useState(''); const [saved,setSaved]=useState(()=>JSON.parse(localStorage.getItem('signal-drafts')||'[]')); const [copied,setCopied]=useState(false)
  const [geminiKey,setGeminiKey]=useState(()=>localStorage.getItem('gemini-api-key')||''); const [loading,setLoading]=useState(false); const [status,setStatus]=useState('');
  const [showCopyGuide,setShowCopyGuide]=useState(false);
+ const [liToken, setLiToken] = useState(() => localStorage.getItem('li-token') || '');
+ const [liUser, setLiUser] = useState(() => JSON.parse(localStorage.getItem('li-user') || 'null'));
+ const [publishing, setPublishing] = useState(false);
+ const [liStatus, setLiStatus] = useState('');
 
  useEffect(()=>localStorage.setItem('signal-drafts',JSON.stringify(saved)),[saved])
  useEffect(()=>localStorage.setItem('gemini-api-key',geminiKey),[geminiKey])
+ useEffect(() => localStorage.setItem('li-token', liToken), [liToken])
+ useEffect(() => localStorage.setItem('li-user', JSON.stringify(liUser)), [liUser])
  useEffect(()=>{if(!post)setPost(createPost({topic,point,audience,tone,framework}))},[])
+
+ const connectLinkedIn = async () => {
+  if (!liToken) {
+   setLiStatus('Please enter an access token.');
+   return;
+  }
+  setLiStatus('Connecting...');
+  try {
+   const profile = await fetchLinkedInProfile(liToken);
+   setLiUser(profile);
+   setLiStatus(`✓ Connected as ${profile.name}`);
+  } catch (e) {
+   setLiStatus(`Error: ${e.message}`);
+   setLiUser(null);
+  }
+ };
+
+ const disconnectLinkedIn = () => {
+  setLiToken('');
+  setLiUser(null);
+  setLiStatus('');
+ };
+
+ const handleDirectPublish = async () => {
+  if (!liUser || !liToken) return;
+  setPublishing(true);
+  try {
+   await publishToLinkedIn({ token: liToken, authorUrn: liUser.urn, text: post });
+   alert('✓ Post successfully published on LinkedIn!');
+  } catch (e) {
+   alert(`Failed to publish: ${e.message}`);
+  } finally {
+   setPublishing(false);
+  }
+ };
 
  const stats=useMemo(()=>({chars:post.length,words:post.trim()?post.trim().split(/\s+/).length:0,read:Math.max(1,Math.ceil(post.trim().split(/\s+/).length/180))}),[post])
  
@@ -124,8 +226,8 @@ function App(){
  return <div className="app-shell">
   <aside className="sidebar"><div className="brand"><span>S</span><div><b>SIGNAL</b><small>CONTENT STUDIO</small></div></div><nav>{[['compose',WandSparkles,'Compose'],['campaign',CalendarDays,'Bulk Campaign'],['visuals',Image,'Visuals & GIF'],['drafts',FileText,'Drafts']].map(([id,I,label])=><button key={id} className={tab===id?'active':''} onClick={()=>setTab(id)}><I size={18}/>{label}</button>)}</nav><div className="side-note"><Sparkles size={17}/><b>Human first</b><p>Draft with structure. Review with judgement. Publish manually.</p></div><footer>NO LINKEDIN CREDENTIALS<br/>STORED OR REQUIRED</footer></aside>
   <main><header className="topbar"><div><span className="live-dot"/> PRIVATE WORKSPACE</div><div className="top-actions"><button onClick={save}><Save size={15}/> Save draft</button><button className="publish" onClick={()=>window.open('https://www.linkedin.com/feed/?shareActive=true','_blank')}><Send size={15}/> Open LinkedIn</button></div></header>
-   {tab==='compose'&&<div className="workspace"><section className="composer"><div className="section-title"><small>01 / STRATEGY</small><h1>Turn one idea into<br/><em>a post worth reading.</em></h1><p>Choose a proven information structure, add your real experience, then edit until it sounds like you.</p></div><div className="form-block"><label>What do you want to write about?</label><input value={topic} onChange={e=>setTopic(e.target.value)} placeholder="e.g. What I learned building an AI course"/><label>Your original point or experience</label><textarea value={point} onChange={e=>setPoint(e.target.value)} rows="3"/><div className="two-cols"><div><label>Audience</label><select value={audience} onChange={e=>setAudience(e.target.value)}>{audiences.map(x=><option key={x}>{x}</option>)}</select></div><div><label>Tone</label><select value={tone} onChange={e=>setTone(e.target.value)}>{tones.map(x=><option key={x}>{x}</option>)}</select></div></div><div style={{marginTop:'15px',background:'#15131a',border:'1px dashed #44344f',padding:'16px',borderRadius:'10px'}}><div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'8px'}}><label style={{font:'10px DM Mono',color:'#ab7fc0',letterSpacing:'.09em',margin:0}}>✨ GOOGLE GEMINI AI WRITER (FREE)</label><a href="https://aistudio.google.com/" target="_blank" rel="noreferrer" style={{color:'#8d679e',fontSize:'9px',textDecoration:'underline'}}>Get your API key in 30 seconds</a></div><p style={{fontSize:'11px',color:'#888',margin:'0 0 10px 0',lineHeight:'1.4'}}>By default, the app uses offline templates. Paste a free key from Google AI Studio to unlock custom, tailored AI generation for any topic!</p><div style={{display:'flex',gap:'8px'}}><input type="password" value={geminiKey} onChange={e=>setGeminiKey(e.target.value)} placeholder="Paste your API key (starts with AIzaSy...)" style={{flex:1,background:'#0d0e12',border:'1px solid #2b2c34'}}/>{geminiKey&&<button onClick={()=>setGeminiKey('')} style={{border:'1px solid #30323a',background:'#16171c',color:'#aaaeb6',borderRadius:'7px',padding:'0 12px',cursor:'pointer'}}>Clear</button>}</div></div></div><div className="frameworks"><div className="block-head"><div><small>02 / STRUCTURE</small><h2>Choose a framework</h2></div><Lightbulb size={20}/></div>{frameworks.map(f=><button key={f.id} onClick={()=>setFramework(f.id)} className={framework===f.id?'active':''}><span>{f.icon}</span><div><b>{f.name}</b><small>{f.desc}</small></div><em>{f.tag}</em><Check size={16}/></button>)}</div><button className="generate" onClick={generate} disabled={loading}>{loading?<Loader2 className="spin" size={18}/>:<Sparkles size={18}/>} {loading?'Generating draft...':geminiKey?'Generate draft with Gemini AI':'Generate structured template'} <ChevronRight size={17}/></button>{status&&<p style={{fontSize:'11px',color:'#af8fbd',marginTop:'8px'}}>{status}</p>}</section>
-     <section className="preview"><div className="preview-head"><div><small>LIVE PREVIEW</small><span>LinkedIn text post</span></div><button onClick={copy}>{copied?<Check size={16}/>:<Clipboard size={16}/>} {copied?'Copied':'Copy'}</button></div><div className="post-card"><div className="profile"><div className="avatar">LS</div><div><b>Lalit Singh</b><span>Learning AI by building · Just now · ◉</span></div></div><textarea value={post} onChange={e=>setPost(e.target.value)}/><div className="post-metrics"><span>{stats.chars} characters</span><span>{stats.words} words</span><span>~{stats.read} min read</span></div></div><div className="quality"><div><b>Post quality</b><span>Strong foundation</span></div>{[['Clear first-line hook',true],['Scannable line length',true],['Original point included',point.length>15],['Ends with a conversation',post.includes('?')]].map(([x,ok])=><p key={x} className={ok?'ok':''}><i>{ok?'✓':'·'}</i>{x}</p>)}</div></section></div>}
+   {tab==='compose'&&<div className="workspace"><section className="composer"><div className="section-title"><small>01 / STRATEGY</small><h1>Turn one idea into<br/><em>a post worth reading.</em></h1><p>Choose a proven information structure, add your real experience, then edit until it sounds like you.</p></div><div className="form-block"><label>What do you want to write about?</label><input value={topic} onChange={e=>setTopic(e.target.value)} placeholder="e.g. What I learned building an AI course"/><label>Your original point or experience</label><textarea value={point} onChange={e=>setPoint(e.target.value)} rows="3"/><div className="two-cols"><div><label>Audience</label><select value={audience} onChange={e=>setAudience(e.target.value)}>{audiences.map(x=><option key={x}>{x}</option>)}</select></div><div><label>Tone</label><select value={tone} onChange={e=>setTone(e.target.value)}>{tones.map(x=><option key={x}>{x}</option>)}</select></div></div><div style={{marginTop:'15px',background:'#15131a',border:'1px dashed #44344f',padding:'16px',borderRadius:'10px'}}><div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'8px'}}><label style={{font:'10px DM Mono',color:'#ab7fc0',letterSpacing:'.09em',margin:0}}>✨ GOOGLE GEMINI AI WRITER (FREE)</label><a href="https://aistudio.google.com/" target="_blank" rel="noreferrer" style={{color:'#8d679e',fontSize:'9px',textDecoration:'underline'}}>Get your API key in 30 seconds</a></div><p style={{fontSize:'11px',color:'#888',margin:'0 0 10px 0',lineHeight:'1.4'}}>By default, the app uses offline templates. Paste a free key from Google AI Studio to unlock custom, tailored AI generation for any topic!</p><div style={{display:'flex',gap:'8px'}}><input type="password" value={geminiKey} onChange={e=>setGeminiKey(e.target.value)} placeholder="Paste your API key (starts with AIzaSy...)" style={{flex:1,background:'#0d0e12',border:'1px solid #2b2c34'}}/>{geminiKey&&<button onClick={()=>setGeminiKey('')} style={{border:'1px solid #30323a',background:'#16171c',color:'#aaaeb6',borderRadius:'7px',padding:'0 12px',cursor:'pointer'}}>Clear</button>}</div></div><div style={{marginTop:'15px',background:'#0e141b',border:'1px dashed #203e5f',padding:'16px',borderRadius:'10px'}}><div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'8px'}}><label style={{font:'10px DM Mono',color:'#58a6ff',letterSpacing:'.09em',margin:0}}>⚡ DIRECT LINKEDIN PUBLISHING (OPTIONAL)</label>{liUser&&<button onClick={disconnectLinkedIn} style={{color:'#f85149',background:'none',border:'none',fontSize:'9px',cursor:'pointer',textDecoration:'underline'}}>Disconnect</button>}</div><p style={{fontSize:'11px',color:'#888',margin:'0 0 10px 0',lineHeight:'1.4'}}>{liUser?`Connected as ${liUser.name} (${liUser.urn})` : "Paste your LinkedIn Access Token to enable instant, one-click publishing directly from this workspace."}</p>{!liUser&&<div style={{display:'flex',gap:'8px'}}><input type="password" value={liToken} onChange={e=>setLiToken(e.target.value)} placeholder="Paste access token (starts with AQ...)" style={{flex:1,background:'#0d0e12',border:'1px solid #2b2c34'}}/><button onClick={connectLinkedIn} style={{border:'1px solid #30323a',background:'#16171c',color:'#eee',borderRadius:'7px',padding:'0 16px',cursor:'pointer',fontSize:'12px'}}>Connect</button></div>}{liStatus&&<p style={{fontSize:'10px',color:liUser?'#56ff56':'#ff5656',margin:'5px 0 0 0'}}>{liStatus}</p>}</div></div><div className="frameworks"><div className="block-head"><div><small>02 / STRUCTURE</small><h2>Choose a framework</h2></div><Lightbulb size={20}/></div>{frameworks.map(f=><button key={f.id} onClick={()=>setFramework(f.id)} className={framework===f.id?'active':''}><span>{f.icon}</span><div><b>{f.name}</b><small>{f.desc}</small></div><em>{f.tag}</em><Check size={16}/></button>)}</div><button className="generate" onClick={generate} disabled={loading}>{loading?<Loader2 className="spin" size={18}/>:<Sparkles size={18}/>} {loading?'Generating draft...':geminiKey?'Generate draft with Gemini AI':'Generate structured template'} <ChevronRight size={17}/></button>{status&&<p style={{fontSize:'11px',color:'#af8fbd',marginTop:'8px'}}>{status}</p>}</section>
+     <section className="preview"><div className="preview-head"><div><small>LIVE PREVIEW</small><span>LinkedIn text post</span></div><div style={{display:'flex',gap:'8px'}}>{liUser&&<button onClick={handleDirectPublish} disabled={publishing} style={{background:'#0a66c2',color:'#fff',border:'none',borderRadius:'6px',padding:'6px 12px',fontSize:'12px',fontWeight:600,cursor:'pointer',display:'flex',alignItems:'center',gap:'4px'}}>{publishing?<Loader2 className="spin" size={13}/>:<Send size={13}/>}{publishing?'Publishing...':'Publish Direct'}</button>}<button onClick={copy}>{copied?<Check size={16}/>:<Clipboard size={16}/>} {copied?'Copied':'Copy'}</button></div></div><div className="post-card"><div className="profile"><div className="avatar">LS</div><div><b>Lalit Singh</b><span>Learning AI by building · Just now · ◉</span></div></div><textarea value={post} onChange={e=>setPost(e.target.value)}/><div className="post-metrics"><span>{stats.chars} characters</span><span>{stats.words} words</span><span>~{stats.read} min read</span></div></div><div className="quality"><div><b>Post quality</b><span>Strong foundation</span></div>{[['Clear first-line hook',true],['Scannable line length',true],['Original point included',point.length>15],['Ends with a conversation',post.includes('?')]].map(([x,ok])=><p key={x} className={ok?'ok':''}><i>{ok?'✓':'·'}</i>{x}</p>)}</div></section></div>}
    {tab==='visuals'&&<VisualStudio/>}{tab==='campaign'&&<BulkCampaign geminiKey={geminiKey} onSaveDrafts={(newDrafts)=>setSaved([...newDrafts,...saved])}/>} {tab==='drafts'&&<Drafts saved={saved} setSaved={setSaved} setPost={setPost} setTab={setTab} exportCSV={exportCSV}/>}
   </main>
 
